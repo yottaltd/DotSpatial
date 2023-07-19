@@ -14,14 +14,16 @@
 // ********************************************************************************************************
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using DotSpatial.Projections.Nad;
 using DotSpatial.Projections.Transforms;
 
 namespace DotSpatial.Projections
 {
-    public static class GridShift
+    public class GridShift : IGridShift
     {
         private const double HUGE_VAL = double.MaxValue;
         private const int MAX_TRY = 9;
@@ -29,20 +31,52 @@ namespace DotSpatial.Projections
 
         #region Private Variables
 
-        private static readonly NadTables _shift = new();
+        private readonly NadTables _shift = new();
 
         #endregion
 
         static GridShift()
         {
+            var defaultGridShift = new GridShift();
+            defaultGridShift._shift.InitializeEmbeddedGrids();
+            Default = defaultGridShift; 
+        }
+
+        public GridShift()
+        {
             ThrowGridShiftMissingExceptions = true;
         }
+
+        #region Compatibility
+        public static IGridShift Default { get; }
+
+        public static bool ThrowGridShiftMissingExceptions
+        {
+            get => Default.ThrowGridShiftMissingExceptions;
+            set => Default.ThrowGridShiftMissingExceptions = value;
+        }
+
+        public static void Apply(string[] names, bool inverse, double[] xy, int startIndex, long numPoints)
+        {
+            Default.Apply(names, inverse, xy, startIndex, numPoints);
+        }
+
+        public static void InitializeExternalGrids()
+        {
+            Default.InitializeExternalGrids();
+        }
+
+        public static void InitializeExternalGrids(string gridsFolder, bool recursive)
+        {
+            Default.InitializeExternalGrids(gridsFolder, recursive);
+        }
+        #endregion
 
         /// <summary>
         /// Gets or sets a boolean which controls raising <see cref="GridShiftMissingException"/> in case when grid shift table is not found during applying grid shift.
         /// By default it is true.
         /// </summary>
-        public static bool ThrowGridShiftMissingExceptions { get; set; }
+        bool IGridShift.ThrowGridShiftMissingExceptions { get; set; }
 
         #region Methods
 
@@ -50,7 +84,7 @@ namespace DotSpatial.Projections
         /// Applies either a forward or backward gridshift based on the specified name
         /// </summary>
         /// <exception cref="GridShiftMissingException"/>
-        public static void Apply(string[] names, bool inverse, double[] xy, int startIndex, long numPoints)
+        void IGridShift.Apply(string[] names, bool inverse, double[] xy, int startIndex, long numPoints)
         {
             for (int i = startIndex; i < numPoints; i++)
             {
@@ -97,7 +131,7 @@ namespace DotSpatial.Projections
                     Trace.WriteLine(string.Format("pj_apply_gridshift(): failed to find a grid shift Table for location: ({0}, {1}). Names: {2}",
                         xy[i * 2] * 180 / Math.PI, xy[i * 2 + 1] * 180 / Math.PI, string.Join(",", names)));
 
-                    if (ThrowGridShiftMissingExceptions)
+                    if ((this as IGridShift).ThrowGridShiftMissingExceptions)
                     {
                         throw new GridShiftMissingException();
                     }
@@ -110,7 +144,7 @@ namespace DotSpatial.Projections
             }
         }
 
-        private static bool TryGrid(PhiLam input, NadTable table)
+        private bool TryGrid(PhiLam input, NadTable table)
         {
             var wLam = table.LowerLeft.Lambda;
             var eLam = wLam + (table.NumLambdas - 1) * table.CellSize.Lambda;
@@ -124,7 +158,7 @@ namespace DotSpatial.Projections
             return true;
         }
 
-        private static PhiLam Convert(PhiLam input, bool inverse, NadTable table)
+        private PhiLam Convert(PhiLam input, bool inverse, NadTable table)
         {
             if (input.Lambda == HUGE_VAL) return input;
             // Normalize input to ll origin
@@ -185,7 +219,7 @@ namespace DotSpatial.Projections
             return input;
         }
 
-        private static PhiLam NadInterpolate(PhiLam t, NadTable ct)
+        private PhiLam NadInterpolate(PhiLam t, NadTable ct)
         {
             PhiLam result, remainder;
             result.Phi = HUGE_VAL;
@@ -290,7 +324,7 @@ namespace DotSpatial.Projections
         /// <param name="iLam">The cell index in the lambda direction</param>
         /// <param name="table">The Table with the values</param>
         /// <returns>A PhiLam that has the shift coefficeints.</returns>
-        private static PhiLam GetValue(int iPhi, int iLam, NadTable table)
+        private PhiLam GetValue(int iPhi, int iLam, NadTable table)
         {
             if (iPhi < 0) iPhi = 0;
             if (iPhi >= table.NumPhis) iPhi = table.NumPhis - 1;
@@ -302,7 +336,7 @@ namespace DotSpatial.Projections
         /// <summary>
         /// Load grids from the default GeogTransformsGrids subfolder
         /// </summary>
-        public static void InitializeExternalGrids()
+        void IGridShift.InitializeExternalGrids()
         {
             _shift.InitializeExternalGrids();
         }
@@ -312,9 +346,14 @@ namespace DotSpatial.Projections
         /// </summary>
         /// <param name="gridsFolder">Path to folder with gridshift transformations</param>
         /// <param name="recursive">Recursively read folder, or not.</param>
-        public static void InitializeExternalGrids(string gridsFolder, bool recursive)
+        void IGridShift.InitializeExternalGrids(string gridsFolder, bool recursive)
         {
             _shift.InitializeExternalGrids(gridsFolder, recursive);
+        }
+
+        void IGridShift.InitializeExternalGrids(IEnumerable<(string FileName, Func<Stream> StreamFactory)> grids)
+        {
+            _shift.InitializeExternalGrids(grids);
         }
 
         #endregion

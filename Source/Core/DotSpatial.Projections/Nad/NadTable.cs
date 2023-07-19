@@ -53,6 +53,8 @@ namespace DotSpatial.Projections.Nad
         private bool _filled;
         private GridShiftTableFormat _format;
 
+        private Func<Stream> _streamFactory;
+
         private string _gridFilePath;
 
         /// <summary>
@@ -138,14 +140,29 @@ namespace DotSpatial.Projections.Nad
             if (embedded)
             {
                 _manifestResourceString = location;
+                _streamFactory = () => _requiresDecompression
+                        ? DeflateStreamReader.DecodeEmbeddedResource(_manifestResourceString)
+                        : Assembly.GetExecutingAssembly().GetManifestResourceStream(_manifestResourceString);
             }
             else
             {
                 _gridFilePath = location;
+                _streamFactory = () => File.OpenRead(_gridFilePath);
             }
             _fileIsEmbedded = embedded;
             _requiresDecompression = requiresDecompression;
             _dataOffset = offset;
+        }
+
+        /// <summary>
+        /// This initializes a new table from the given stream getter
+        /// </summary>
+        /// <param name="streamFactory"></param>
+        public NadTable(Func<Stream> streamFactory)
+        {
+            // Not embedded, but at least callers wont be confused why public filename is null
+            _fileIsEmbedded = true;
+            _streamFactory = streamFactory;
         }
 
         /// <summary>
@@ -310,7 +327,7 @@ namespace DotSpatial.Projections.Nad
         }
 
         /// <summary>
-        /// If FileIsEmbedded is false, this contains the full path to the grid file
+        /// If loaded from a file, this contains the full path to the grid file
         /// </summary>
         public string GridFilePath
         {
@@ -356,13 +373,7 @@ namespace DotSpatial.Projections.Nad
         /// <returns></returns>
         protected Stream GetStream()
         {
-            Assembly a = Assembly.GetExecutingAssembly();
-            Stream str = FileIsEmbedded
-                ? (_requiresDecompression
-                    ? DeflateStreamReader.DecodeEmbeddedResource(_manifestResourceString)
-                    : a.GetManifestResourceStream(_manifestResourceString))
-                : File.OpenRead(_gridFilePath);
-            return str;
+            return _streamFactory();
         }
 
         #endregion

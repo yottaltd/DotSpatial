@@ -47,6 +47,11 @@ namespace DotSpatial.Projections
             Format = GridShiftTableFormat.LOS;
         }
 
+        public LasLosNadTable(Func<Stream> streamFactory) : base(streamFactory)
+        {
+            Format = GridShiftTableFormat.LOS;
+        }
+
         /// <inheritdoc></inheritdoc>
         public override void ReadHeader()
         {

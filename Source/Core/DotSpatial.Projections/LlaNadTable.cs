@@ -46,6 +46,11 @@ namespace DotSpatial.Projections
             Format = GridShiftTableFormat.LLA;
         }
 
+        public LlaNadTable(Func<Stream> streamFactory) : base(streamFactory)
+        {
+            Format = GridShiftTableFormat.LLA;
+        }
+
         /// <inheritdoc></inheritdoc>
         public override void ReadHeader()
         {

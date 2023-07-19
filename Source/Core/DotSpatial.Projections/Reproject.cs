@@ -14,18 +14,47 @@
 // ********************************************************************************************************
 
 using System;
+using System.Runtime.CompilerServices;
 
 namespace DotSpatial.Projections
 {
     /// <summary>
     /// Contains methods for reprojection.
     /// </summary>
-    public static class Reproject
+    public class Reproject : IReproject
     {
         #region Private Variables
 
         private const double EPS = 1E-12;
 
+        private readonly IGridShift _gridShift;
+
+        #endregion
+
+        static Reproject()
+        {
+            Default = new Reproject(GridShift.Default);
+        }
+
+        public Reproject(IGridShift gridShift)
+        {
+            _gridShift = gridShift;
+        }
+
+        #region Compatibility
+        public static IReproject Default { get; }
+        public static double[] ReprojectAffine(double[] affine, double numRows, double numCols, ProjectionInfo source, ProjectionInfo dest)
+        {
+            return Default.ReprojectAffine(affine, numRows, numCols, source, dest);
+        }
+        public static void ReprojectPoints(double[] xy, double[] z, ProjectionInfo source, ProjectionInfo dest, int startIndex, int numPoints)
+        {
+            Default.ReprojectPoints(xy, z, source, dest, startIndex, numPoints);
+        }
+        public static void ReprojectPoints(double[] xy, double[] z, ProjectionInfo source, double srcZtoMeter, ProjectionInfo dest, double dstZtoMeter, IDatumTransform idt, int startIndex, int numPoints)
+        {
+            Default.ReprojectPoints(xy, z, source, srcZtoMeter, dest, dstZtoMeter, idt, startIndex, numPoints);
+        }
         #endregion
 
         #region Methods
@@ -45,7 +74,7 @@ namespace DotSpatial.Projections
         /// <param name="source"></param>
         /// <param name="dest"></param>
         /// <returns>The transformed coefficients</returns>
-        public static double[] ReprojectAffine(double[] affine, double numRows, double numCols, ProjectionInfo source, ProjectionInfo dest)
+        double[] IReproject.ReprojectAffine(double[] affine, double numRows, double numCols, ProjectionInfo source, ProjectionInfo dest)
         {
             if (numRows <= 0) numRows = 1;
             if (numCols <= 0) numCols = 1;
@@ -61,7 +90,7 @@ namespace DotSpatial.Projections
             vertices[4] = affine[0] + affine[2] * numRows;
             vertices[5] = affine[3] + affine[5] * numRows;
             double[] z = new double[3];
-            ReprojectPoints(vertices, z, source, dest, 0, 3);
+            (this as IReproject).ReprojectPoints(vertices, z, source, dest, 0, 3);
             double[] affineResult = new double[6];
 
             affineResult[0] = vertices[0];
@@ -75,12 +104,12 @@ namespace DotSpatial.Projections
             return affineResult;
         }
         
-        public static void ReprojectPoints(double[] xy, double[] z, ProjectionInfo source, ProjectionInfo dest, int startIndex, int numPoints)
+        void IReproject.ReprojectPoints(double[] xy, double[] z, ProjectionInfo source, ProjectionInfo dest, int startIndex, int numPoints)
         {
-            ReprojectPoints(xy, z, source, 1.0, dest, 1.0, null, startIndex, numPoints);
+            (this as IReproject).ReprojectPoints(xy, z, source, 1.0, dest, 1.0, null, startIndex, numPoints);
         }
         
-        public static void ReprojectPoints(double[] xy, double[] z, ProjectionInfo source, double srcZtoMeter, ProjectionInfo dest, double dstZtoMeter, IDatumTransform idt, int startIndex, int numPoints)
+        void IReproject.ReprojectPoints(double[] xy, double[] z, ProjectionInfo source, double srcZtoMeter, ProjectionInfo dest, double dstZtoMeter, IDatumTransform idt, int startIndex, int numPoints)
         {
             double toMeter = source.Unit.Meters;
 
@@ -171,7 +200,7 @@ namespace DotSpatial.Projections
             }
         }
 
-        private static void ConvertToProjected(ProjectionInfo dest, double[] xy, double[] z, double dstZtoMeter, int startIndex, int numPoints)
+        private void ConvertToProjected(ProjectionInfo dest, double[] xy, double[] z, double dstZtoMeter, int startIndex, int numPoints)
         {
             double frmMeter = 1 / dest.Unit.Meters;
             double frmZMeter = 1 / dstZtoMeter;
@@ -232,7 +261,7 @@ namespace DotSpatial.Projections
             }
         }
 
-        private static void DatumTransform(ProjectionInfo source, ProjectionInfo dest, double[] xy, double[] z, int startIndex, int numPoints)
+        private void DatumTransform(ProjectionInfo source, ProjectionInfo dest, double[] xy, double[] z, int startIndex, int numPoints)
         {
             Spheroid wgs84 = new(Proj4Ellipsoid.WGS_1984);
             Datum sDatum = source.GeographicInfo.Datum;
@@ -289,7 +318,7 @@ namespace DotSpatial.Projections
                 //        pj_apply_gridshift(pj_param(srcdefn->params,"snadgrids").s, 0,
                 //                            point_count, point_offset, x, y, z );
 
-                GridShift.Apply(source.GeographicInfo.Datum.NadGrids, false, xy, startIndex, numPoints);
+                _gridShift.Apply(source.GeographicInfo.Datum.NadGrids, false, xy, startIndex, numPoints);
 
                 srcA = wgs84.EquatorialRadius;
                 srcEs = wgs84.EccentricitySquared();
@@ -347,11 +376,11 @@ namespace DotSpatial.Projections
             {
                 //        pj_apply_gridshift(pj_param(dstdefn->params,"snadgrids").s, 1,
                 //                            point_count, point_offset, x, y, z );
-                GridShift.Apply(dest.GeographicInfo.Datum.NadGrids, true, xy, startIndex, numPoints);
+                _gridShift.Apply(dest.GeographicInfo.Datum.NadGrids, true, xy, startIndex, numPoints);
             }
         }
 
-        private static void ConvertToLatLon(ProjectionInfo source, double[] xy, double[] z, double srcZtoMeter, int startIndex, int numPoints)
+        private void ConvertToLatLon(ProjectionInfo source, double[] xy, double[] z, double srcZtoMeter, int startIndex, int numPoints)
         {
             double toMeter = 1.0;
             if (source.Unit != null) toMeter = source.Unit.Meters;
@@ -411,7 +440,7 @@ namespace DotSpatial.Projections
             }
         }
 
-        private static double Adjlon(double lon)
+        private double Adjlon(double lon)
         {
             if (Math.Abs(lon) <= Math.PI + Math.PI / 72) return (lon);
             lon += Math.PI;  /* adjust to 0..2pi rad */
@@ -420,7 +449,7 @@ namespace DotSpatial.Projections
             return (lon);
         }
 
-        private static void PjGeocentricToWgs84(ProjectionInfo source, double[] xy, double[] zArr, int startIndex, int numPoints)
+        private void PjGeocentricToWgs84(ProjectionInfo source, double[] xy, double[] zArr, int startIndex, int numPoints)
         {
             double[] shift = source.GeographicInfo.Datum.ToWGS84;
 
@@ -450,7 +479,7 @@ namespace DotSpatial.Projections
             }
         }
 
-        private static void PjGeocentricFromWgs84(ProjectionInfo dest, double[] xy, double[] zArr, int startIndex, int numPoints)
+        private void PjGeocentricFromWgs84(ProjectionInfo dest, double[] xy, double[] zArr, int startIndex, int numPoints)
         {
             double[] shift = dest.GeographicInfo.Datum.ToWGS84;
 

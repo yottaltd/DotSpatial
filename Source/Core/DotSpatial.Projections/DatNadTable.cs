@@ -40,6 +40,11 @@ namespace DotSpatial.Projections
             Format = GridShiftTableFormat.DAT;
         }
 
+        public DatNadTable(Func<Stream> streamFactory) : base(streamFactory)
+        {
+            Format = GridShiftTableFormat.DAT;
+        }
+
         /// <inheritdoc></inheritdoc>
         public override void ReadHeader()
         {

@@ -22,13 +22,16 @@ namespace DotSpatial.Projections
         protected const double SecToRad = 4.848136811095359935899141023e-6;
 
         private readonly IDatumTransformStage[] _aiDts;
+        private readonly IGridShift _gridShift;
        
-        public DatumTransform(IDatumTransformStage[] aiDatumTransformStage)
+        public DatumTransform(IDatumTransformStage[] aiDatumTransformStage, IGridShift gridShift = null)
         {
             if (aiDatumTransformStage == null)
             {
                 throw new Exception("Null DatumTransformStage array passed to constructor");
             }
+
+            _gridShift = gridShift ?? GridShift.Default;
          
             _aiDts = aiDatumTransformStage;
         }
@@ -103,7 +106,7 @@ namespace DotSpatial.Projections
 
                     var astrGrids = new string[1];
                     astrGrids[0] = "@" + idts.GridShiftTable;
-                    GridShift.Apply(astrGrids, idts.ApplyTableInverse, xy, startIndex, numPoints);
+                    _gridShift.Apply(astrGrids, idts.ApplyTableInverse, xy, startIndex, numPoints);
                 }
                 else
                 {

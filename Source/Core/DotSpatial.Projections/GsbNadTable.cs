@@ -51,6 +51,11 @@ namespace DotSpatial.Projections
             Format = GridShiftTableFormat.GSB;
         }
 
+        public GsbNadTable(Func<Stream> streamFactory) : base(streamFactory)
+        {
+            Format = GridShiftTableFormat.GSB;
+        }
+
         #endregion
 
         #region Methods
