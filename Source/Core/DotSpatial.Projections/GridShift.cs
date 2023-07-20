@@ -44,7 +44,7 @@ namespace DotSpatial.Projections
 
         public GridShift()
         {
-            ThrowGridShiftMissingExceptions = true;
+            (this as IGridShift).ThrowGridShiftMissingExceptions = true;
         }
 
         #region Compatibility
